@@ -1,103 +1,130 @@
 import streamlit as st
 from transformers import GPT2LMHeadModel, GPT2Tokenizer, pipeline
 import torch
-import re  # For formatting the output
+import re  
 import os
 import subprocess
 import json
 
-# --- 1. Page Configuration ---
 st.set_page_config(
     page_title="Recipe Generator",
-    page_icon="🧑‍🍳",
-    layout="wide",  # Use a wide layout for a more modern feel
+    page_icon="R",
+    layout="wide",
     initial_sidebar_state="auto"
 )
 
-# --- 2. Custom CSS for a Unique UI ---
 st.markdown("""
 <style>
     /* Main app background */
     [data-testid="stAppViewContainer"] {
-        background-color: #f0f2f6; /* Light gray background */
+        background-color: #f0f4f7; /* A light, clean blue-gray */
         background-image: none;
     }
+
+    /* Remove Streamlit Header/Footer */
+    header {visibility: hidden;}
+    footer {visibility: hidden;}
 
     /* Custom Title */
     .title-container {
         text-align: center;
-        padding: 20px;
-        background-color: #ffffff;
-        border-radius: 10px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-        margin-bottom: 20px;
+        padding: 25px 0;
+        margin-bottom: 30px;
     }
     .title-container h1 {
-        font-size: 2.5em;
+        font-size: 3em;
         font-weight: 700;
-        color: #2a3a4b; /* Dark text */
+        color: #1a2c4e; /* Dark navy text */
     }
     .title-container p {
-        font-size: 1.1em;
-        color: #556;
+        font-size: 1.15em;
+        color: #5a6a8a; /* Muted subtext */
     }
 
-    /* Custom Form Submit Button (New Blue Theme) */
+    /* Main content columns as cards */
+    [data-testid="stHorizontalBlock"] > [data-testid="stVerticalBlock"] {
+        background-color: #ffffff;
+        border-radius: 12px;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.05);
+        padding: 30px;
+        border-top: 5px solid #007bff; /* Accent color */
+    }
+    
+    /* Card Headers */
+    [data-testid="stHorizontalBlock"] h2 {
+        color: #1a2c4e;
+        font-weight: 600;
+        font-size: 1.75em;
+        border-bottom: 2px solid #f0f4f7;
+        padding-bottom: 12px;
+        margin-bottom: 20px;
+    }
+
+    /* Custom Form Submit Button */
     [data-testid="stFormSubmitButton"] button {
-        background-color: #0068c9; /* A clean, modern blue */
+        background-image: linear-gradient(45deg, #007bff, #0056b3);
         color: white;
         border: none;
-        padding: 10px 20px;
+        padding: 12px 24px;
         border-radius: 8px;
         font-size: 1.1em;
         font-weight: bold;
         transition: all 0.3s ease;
         width: 100%;
+        box-shadow: 0 4px 15px rgba(0,123,255,0.2);
     }
     [data-testid="stFormSubmitButton"] button:hover {
-        background-color: #004a99; /* Darker blue on hover */
-        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        background-image: linear-gradient(45deg, #0056b3, #007bff);
+        box-shadow: 0 6px 20px rgba(0,123,255,0.3);
+        transform: translateY(-2px);
     }
 
     /* Style for the generated recipe output */
     .recipe-box {
-        background-color: #ffffff;
-        border: 1px solid #ddd;
+        background-color: #f8f9fa; /* Slight off-white for contrast */
+        border: 1px solid #e0e0e0;
         border-radius: 10px;
         padding: 25px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
         min-height: 400px;
     }
     .recipe-box h3 {
-        color: #2a3a4b;
-        border-bottom: 2px solid #0068c9; /* Matching blue border */
+        color: #1a2c4e;
+        border-bottom: 2px solid #007bff;
         padding-bottom: 10px;
+        margin-top: 0;
     }
     .recipe-box p {
         font-size: 1.05em;
-        line-height: 1.6;
+        line-height: 1.7;
         color: #333;
     }
+    
+    /* Style for the text inputs */
+    [data-testid="stTextInput"] input, [data-testid="stTextArea"] textarea {
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        border: 1px solid #d1d9e0;
+    }
+    [data-testid="stTextInput"] input:focus, [data-testid="stTextArea"] textarea:focus {
+        border-color: #007bff;
+        box-shadow: 0 0 0 2px rgba(0,123,255,0.25);
+    }
+
 </style>
 """, unsafe_allow_html=True)
 
 
-# --- 3. Model Download Logic ---
-MODEL_PATH = "final_model" # The model will be in this local folder
+MODEL_PATH = "final_model"
 
 @st.cache_resource
 def setup_and_download_model():
-    # Only run this if the model folder doesn't already exist
     if not os.path.exists(MODEL_PATH):
         print("Model folder not found. Starting download from Kaggle...")
         
-        # Check for secrets
         if "KAGGLE_USERNAME" not in st.secrets or "KAGGLE_KEY" not in st.secrets:
-            # This error will be displayed on the Streamlit app
             st.error("Kaggle API secrets not found. Please add KAGGLE_USERNAME and KAGGLE_KEY to your Streamlit secrets.")
             return False
 
-        # Set up the Kaggle API credentials
         kaggle_dir = os.path.expanduser("~/.kaggle")
         os.makedirs(kaggle_dir, exist_ok=True)
         
@@ -110,22 +137,19 @@ def setup_and_download_model():
         with open(kaggle_json_path, "w") as f:
             json.dump(api_creds, f)
             
-        # Set correct permissions for the API key
         try:
             subprocess.run(["chmod", "600", kaggle_json_path], check=True)
         except Exception as e:
             print(f"Warning: Could not set file permissions. {e}")
 
-        # Download the dataset from Kaggle
         try:
             print("Downloading model from Kaggle...")
-            # Command: kaggle datasets download -d ahmadijaz92/genai-p3-t1 -p . --unzip
             subprocess.run(
                 [
                     "kaggle", "datasets", "download",
-                    "ahmadijaz92/genai-p3-t1", # <-- UPDATED dataset path
-                    "-p", ".",                  # Download to current directory
-                    "--unzip"                   # Unzip the file
+                    "ahmadijaz92/genai-p3-t1",
+                    "-p", ".",
+                    "--unzip"
                 ],
                 check=True
             )
@@ -141,33 +165,26 @@ def setup_and_download_model():
         print("Model folder already exists.")
         return True
 
-# --- 4. Model Loading ---
 
-# Run the setup function first
 model_ready = setup_and_download_model()
 
-# Use Streamlit's caching to load the model only once.
 @st.cache_resource
 def load_model():
     print("--- Loading model and tokenizer ---")
     
     try:
-        # Load the fine-tuned tokenizer
         tokenizer = GPT2Tokenizer.from_pretrained(MODEL_PATH)
         tokenizer.padding_side = 'left'
         
-        # Load the fine-tuned model
         model = GPT2LMHeadModel.from_pretrained(MODEL_PATH)
         
-        # Set the pad token
         tokenizer.pad_token = tokenizer.eos_token
         
-        # Create the text-generation pipeline
         generator_pipeline = pipeline(
             "text-generation",
             model=model,
             tokenizer=tokenizer,
-            device=-1  # Use -1 for CPU, 0 for GPU
+            device=-1
         )
         print("--- Model and tokenizer loaded successfully ---")
         return generator_pipeline, tokenizer
@@ -176,7 +193,6 @@ def load_model():
         st.error(f"Please make sure your model files are in a folder named 'final_model' in the same directory as 'app.py'")
         return None, None
 
-# Load the model and show a spinner
 generator = None
 tokenizer = None
 
@@ -184,31 +200,25 @@ if model_ready:
     with st.spinner("Warming up the AI chef... This may take a moment."):
         generator, tokenizer = load_model()
 
-# --- 5. App Interface ---
 st.markdown("""
 <div class="title-container">
-    <h1>🧑‍🍳 AI Recipe Generator</h1>
+    <h1>AI Recipe Generator</h1>
     <p>Turn your ingredients into a delicious dish with the help of GPT-2.</p>
 </div>
 """, unsafe_allow_html=True)
 
-# Create two columns for layout
 col1, col2 = st.columns([1, 1], gap="large")
 
 with col1:
-    # Removed emoji from header
-    st.header("What's in your kitchen?")
-    
-    # --- 6. User Input Form ---
+    st.markdown("<h2>What's in your kitchen?</h2>", unsafe_allow_html=True)
+
     with st.form(key="recipe_form"):
-        # Input for Recipe Title
         title = st.text_input(
             "What do you want to make?",
             "Spicy Chicken Pasta",
             help="Give your recipe a name."
         )
 
-        # Input for Ingredients
         ingredients_raw = st.text_area(
             "What ingredients do you have?",
             "chicken breast, pasta, cayenne pepper, olive oil, garlic, tomatoes",
@@ -220,19 +230,18 @@ with col1:
             temp = st.slider("Creativity (Temperature)", min_value=0.2, max_value=1.5, value=0.7, step=0.1)
             max_tokens = st.slider("Recipe Length (Max Tokens)", min_value=50, max_value=250, value=150, step=10)
 
-        submit_button = st.form_submit_button(label="Generate Recipe!")
+        submit_button = st.form_submit_button(label="Generate Recipe")
 
 with col2:
-    st.header("Your AI-Generated Recipe")
-
+    st.markdown("<h2>Your AI-Generated Recipe</h2>", unsafe_allow_html=True)
+    
     output_container = st.container()
 
-# --- 7. Generation Logic ---
 if submit_button and generator:
     if not title or not ingredients_raw:
         st.error("Please provide both a title and ingredients.")
     else:
-        with st.spinner("Brewing up your recipe... 🧑‍🍳"):
+        with st.spinner("Generating your recipe..."):
             title_clean = title.strip().lower()
             ingredients_clean = ", ".join([ing.strip().lower() for ing in ingredients_raw.split(',')])
 
@@ -243,7 +252,6 @@ if submit_button and generator:
             )
 
             try:
-                # Call the pipeline
                 generated_output = generator(
                     prompt,
                     max_new_tokens=max_tokens,
