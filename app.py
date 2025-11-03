@@ -35,16 +35,16 @@ st.markdown("""
     .title-container h1 {
         font-size: 2.5em;
         font-weight: 700;
-        color: #2a3a4b;
+        color: #2a3a4b; /* Dark text */
     }
     .title-container p {
         font-size: 1.1em;
         color: #556;
     }
 
-    /* Custom Form Submit Button */
+    /* Custom Form Submit Button (New Blue Theme) */
     [data-testid="stFormSubmitButton"] button {
-        background-color: #28a745; /* Green */
+        background-color: #0068c9; /* A clean, modern blue */
         color: white;
         border: none;
         padding: 10px 20px;
@@ -55,7 +55,7 @@ st.markdown("""
         width: 100%;
     }
     [data-testid="stFormSubmitButton"] button:hover {
-        background-color: #218838;
+        background-color: #004a99; /* Darker blue on hover */
         box-shadow: 0 4px 8px rgba(0,0,0,0.1);
     }
 
@@ -70,7 +70,7 @@ st.markdown("""
     }
     .recipe-box h3 {
         color: #2a3a4b;
-        border-bottom: 2px solid #28a745;
+        border-bottom: 2px solid #0068c9; /* Matching blue border */
         padding-bottom: 10px;
     }
     .recipe-box p {
@@ -93,6 +93,7 @@ def setup_and_download_model():
         
         # Check for secrets
         if "KAGGLE_USERNAME" not in st.secrets or "KAGGLE_KEY" not in st.secrets:
+            # This error will be displayed on the Streamlit app
             st.error("Kaggle API secrets not found. Please add KAGGLE_USERNAME and KAGGLE_KEY to your Streamlit secrets.")
             return False
 
@@ -195,7 +196,8 @@ st.markdown("""
 col1, col2 = st.columns([1, 1], gap="large")
 
 with col1:
-    st.header("What's in your kitchen? 🛒")
+    # Removed emoji from header
+    st.header("What's in your kitchen?")
     
     # --- 6. User Input Form ---
     with st.form(key="recipe_form"):
@@ -215,15 +217,18 @@ with col1:
         )
         
         # Generation parameters in a collapsible section
-        with st.expander("✨ Tweak the AI's Creativity"):
+        # Removed emoji from expander
+        with st.expander("Advanced Settings"):
             temp = st.slider("Creativity (Temperature)", min_value=0.2, max_value=1.5, value=0.7, step=0.1)
             max_tokens = st.slider("Recipe Length (Max Tokens)", min_value=50, max_value=250, value=150, step=10)
 
         # Submit button for the form
-        submit_button = st.form_submit_button(label="🍽️ Generate Recipe!")
+        # Removed emoji from button label
+        submit_button = st.form_submit_button(label="Generate Recipe!")
 
 with col2:
-    st.header("Your AI-Generated Recipe 📜")
+    # Removed emoji from header
+    st.header("Your AI-Generated Recipe")
     
     # This is where the output will be placed
     output_container = st.container()
