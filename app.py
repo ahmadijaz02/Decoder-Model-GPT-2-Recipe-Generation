@@ -1,15 +1,17 @@
 import streamlit as st
 from transformers import GPT2LMHeadModel, GPT2Tokenizer, pipeline
 import torch
-import re  
+import re  # For formatting the output
 
+# --- 1. Page Configuration ---
 st.set_page_config(
     page_title="Recipe Generator",
     page_icon="🧑‍🍳",
-    layout="wide",  
+    layout="wide",  # Use a wide layout for a more modern feel
     initial_sidebar_state="auto"
 )
 
+# --- 2. Custom CSS for a Unique UI ---
 st.markdown("""
 <style>
     /* Main app background */
@@ -77,22 +79,30 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-MODEL_PATH = "/kaggle/input/genai-project3/final_model/" 
+# --- 3. Model Loading ---
+# --- IMPORTANT: Path updated to a local relative path ---
+MODEL_PATH = "final_model" 
 
-
+# Use Streamlit's caching to load the model only once.
 @st.cache_resource
 def load_model():
     print("--- Loading model and tokenizer ---")
     
     try:
-
+        # Load the fine-tuned tokenizer
+        # We set padding_side='left' for batch generation (as we learned)
         tokenizer = GPT2Tokenizer.from_pretrained(MODEL_PATH)
         tokenizer.padding_side = 'left'
-
+        
+        # Load the fine-tuned model
         model = GPT2LMHeadModel.from_pretrained(MODEL_PATH)
         
+        # Set the pad token
         tokenizer.pad_token = tokenizer.eos_token
         
+        # Create the text-generation pipeline
+        # We use device=-1 for CPU to ensure compatibility
+        # Change to device=0 if you are running this on a GPU machine
         generator_pipeline = pipeline(
             "text-generation",
             model=model,
@@ -103,12 +113,14 @@ def load_model():
         return generator_pipeline, tokenizer
     except Exception as e:
         st.error(f"Error loading model: {e}")
-        st.error(f"Please make sure your model files are correctly located at {MODEL_PATH}")
+        st.error(f"Please make sure your model files are in a folder named 'final_model' in the same directory as 'app.py'")
         return None, None
 
+# Load the model and show a spinner
 with st.spinner("Warming up the AI chef... This may take a moment."):
     generator, tokenizer = load_model()
 
+# --- 4. App Interface ---
 st.markdown("""
 <div class="title-container">
     <h1>🧑‍🍳 AI Recipe Generator</h1>
@@ -116,18 +128,22 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
+# Create two columns for layout
 col1, col2 = st.columns([1, 1], gap="large")
 
 with col1:
     st.header("What's in your kitchen? 🛒")
     
+    # --- 5. User Input Form ---
     with st.form(key="recipe_form"):
+        # Input for Recipe Title
         title = st.text_input(
             "What do you want to make?",
             "Spicy Chicken Pasta",
             help="Give your recipe a name."
         )
 
+        # Input for Ingredients
         ingredients_raw = st.text_area(
             "What ingredients do you have?",
             "chicken breast, pasta, cayenne pepper, olive oil, garlic, tomatoes",
@@ -135,25 +151,31 @@ with col1:
             height=150
         )
         
+        # Generation parameters in a collapsible section
         with st.expander("✨ Tweak the AI's Creativity"):
             temp = st.slider("Creativity (Temperature)", min_value=0.2, max_value=1.5, value=0.7, step=0.1)
             max_tokens = st.slider("Recipe Length (Max Tokens)", min_value=50, max_value=250, value=150, step=10)
 
+        # Submit button for the form
         submit_button = st.form_submit_button(label="🍽️ Generate Recipe!")
 
 with col2:
     st.header("Your AI-Generated Recipe 📜")
     
+    # This is where the output will be placed
     output_container = st.container()
 
+# --- 6. Generation Logic ---
 if submit_button and generator:
     if not title or not ingredients_raw:
         st.error("Please provide both a title and ingredients.")
     else:
         with st.spinner("Brewing up your recipe... 🧑‍🍳"):
+            # Clean and format the user's input
             title_clean = title.strip().lower()
             ingredients_clean = ", ".join([ing.strip().lower() for ing in ingredients_raw.split(',')])
 
+            # This prompt format MUST match the one used during training
             prompt = (
                 f"TITLE: {title_clean}\n"
                 f"INGREDIENTS: {ingredients_clean}\n"
@@ -161,6 +183,7 @@ if submit_button and generator:
             )
 
             try:
+                # Call the pipeline
                 generated_output = generator(
                     prompt,
                     max_new_tokens=max_tokens,
@@ -175,12 +198,17 @@ if submit_button and generator:
                 full_text = generated_output[0]['generated_text']
                 recipe_part = full_text[len(prompt):].strip()
 
+                # Clean the output (remove extra EOS tokens)
                 if tokenizer.eos_token in recipe_part:
                     recipe_part = recipe_part.split(tokenizer.eos_token)[0]
 
+                # --- Improve readability by adding HTML newlines ---
+                # We use regex to add <br> tags for proper HTML rendering
                 formatted_recipe_html = re.sub(r' (\d+\.)', r'<br><br>\1', recipe_part).strip()
+                # Wrap in <p> tag for styling
                 formatted_recipe_html = f"<p>{formatted_recipe_html}</p>"
 
+                # Display the result in the right-hand column
                 with output_container:
                     st.markdown(f"""
                     <div class="recipe-box">
