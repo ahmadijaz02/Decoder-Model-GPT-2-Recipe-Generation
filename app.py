@@ -2,6 +2,9 @@ import streamlit as st
 from transformers import GPT2LMHeadModel, GPT2Tokenizer, pipeline
 import torch
 import re  # For formatting the output
+import os
+import subprocess
+import json
 
 # --- 1. Page Configuration ---
 st.set_page_config(
@@ -79,9 +82,68 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-# --- 3. Model Loading ---
-# --- IMPORTANT: Path updated to a local relative path ---
-MODEL_PATH = "final_model" 
+# --- 3. Model Download Logic ---
+MODEL_PATH = "final_model" # The model will be in this local folder
+
+@st.cache_resource
+def setup_and_download_model():
+    # Only run this if the model folder doesn't already exist
+    if not os.path.exists(MODEL_PATH):
+        print("Model folder not found. Starting download from Kaggle...")
+        
+        # Check for secrets
+        if "KAGGLE_USERNAME" not in st.secrets or "KAGGLE_KEY" not in st.secrets:
+            st.error("Kaggle API secrets not found. Please add KAGGLE_USERNAME and KAGGLE_KEY to your Streamlit secrets.")
+            return False
+
+        # Set up the Kaggle API credentials
+        kaggle_dir = os.path.expanduser("~/.kaggle")
+        os.makedirs(kaggle_dir, exist_ok=True)
+        
+        kaggle_json_path = os.path.join(kaggle_dir, "kaggle.json")
+        api_creds = {
+            "username": st.secrets["KAGGLE_USERNAME"],
+            "key": st.secrets["KAGGLE_KEY"]
+        }
+        
+        with open(kaggle_json_path, "w") as f:
+            json.dump(api_creds, f)
+            
+        # Set correct permissions for the API key
+        try:
+            subprocess.run(["chmod", "600", kaggle_json_path], check=True)
+        except Exception as e:
+            print(f"Warning: Could not set file permissions. {e}")
+
+        # Download the dataset from Kaggle
+        try:
+            print("Downloading model from Kaggle...")
+            # Command: kaggle datasets download -d ahmadijaz92/genai-project3 -p . --unzip
+            subprocess.run(
+                [
+                    "kaggle", "datasets", "download",
+                    "ahmadijaz92/genai-project3", # Your dataset path
+                    "-p", ".",                   # Download to current directory
+                    "--unzip"                    # Unzip the file
+                ],
+                check=True
+            )
+            print("Model downloaded and unzipped successfully.")
+            return True
+        except subprocess.CalledProcessError as e:
+            st.error(f"Failed to download model from Kaggle: {e}")
+            return False
+        except Exception as e:
+            st.error(f"An error occurred: {e}")
+            return False
+    else:
+        print("Model folder already exists.")
+        return True
+
+# --- 4. Model Loading ---
+
+# Run the setup function first
+model_ready = setup_and_download_model()
 
 # Use Streamlit's caching to load the model only once.
 @st.cache_resource
@@ -90,7 +152,6 @@ def load_model():
     
     try:
         # Load the fine-tuned tokenizer
-        # We set padding_side='left' for batch generation (as we learned)
         tokenizer = GPT2Tokenizer.from_pretrained(MODEL_PATH)
         tokenizer.padding_side = 'left'
         
@@ -101,8 +162,6 @@ def load_model():
         tokenizer.pad_token = tokenizer.eos_token
         
         # Create the text-generation pipeline
-        # We use device=-1 for CPU to ensure compatibility
-        # Change to device=0 if you are running this on a GPU machine
         generator_pipeline = pipeline(
             "text-generation",
             model=model,
@@ -117,10 +176,14 @@ def load_model():
         return None, None
 
 # Load the model and show a spinner
-with st.spinner("Warming up the AI chef... This may take a moment."):
-    generator, tokenizer = load_model()
+generator = None
+tokenizer = None
 
-# --- 4. App Interface ---
+if model_ready:
+    with st.spinner("Warming up the AI chef... This may take a moment."):
+        generator, tokenizer = load_model()
+
+# --- 5. App Interface ---
 st.markdown("""
 <div class="title-container">
     <h1>🧑‍🍳 AI Recipe Generator</h1>
@@ -134,7 +197,7 @@ col1, col2 = st.columns([1, 1], gap="large")
 with col1:
     st.header("What's in your kitchen? 🛒")
     
-    # --- 5. User Input Form ---
+    # --- 6. User Input Form ---
     with st.form(key="recipe_form"):
         # Input for Recipe Title
         title = st.text_input(
@@ -165,7 +228,7 @@ with col2:
     # This is where the output will be placed
     output_container = st.container()
 
-# --- 6. Generation Logic ---
+# --- 7. Generation Logic ---
 if submit_button and generator:
     if not title or not ingredients_raw:
         st.error("Please provide both a title and ingredients.")
@@ -194,7 +257,7 @@ if submit_button and generator:
                     pad_token_id=tokenizer.eos_token_id
                 )
 
-                # --- 7. Process and Display Output ---
+                # --- 8. Process and Display Output ---
                 full_text = generated_output[0]['generated_text']
                 recipe_part = full_text[len(prompt):].strip()
 
@@ -220,6 +283,8 @@ if submit_button and generator:
             except Exception as e:
                 st.error(f"An error occurred during generation: {e}")
 
-elif not generator:
-    st.error("Model could not be loaded. The app cannot function.")
+elif not generator and model_ready:
+    st.error("Model is ready but failed to load. Please check the app logs.")
+elif not model_ready:
+    st.error("Model download failed. The app cannot function. Please check your Kaggle API secrets and dataset path.")
 
