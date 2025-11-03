@@ -119,13 +119,13 @@ def setup_and_download_model():
         # Download the dataset from Kaggle
         try:
             print("Downloading model from Kaggle...")
-            # Command: kaggle datasets download -d ahmadijaz92/genai-project3 -p . --unzip
+            # Command: kaggle datasets download -d ahmadijaz92/genai-p3-t1 -p . --unzip
             subprocess.run(
                 [
                     "kaggle", "datasets", "download",
-                    "ahmadijaz92/genai-project3", # Your dataset path
-                    "-p", ".",                   # Download to current directory
-                    "--unzip"                    # Unzip the file
+                    "ahmadijaz92/genai-p3-t1", # <-- UPDATED dataset path
+                    "-p", ".",                  # Download to current directory
+                    "--unzip"                   # Unzip the file
                 ],
                 check=True
             )
@@ -167,7 +167,7 @@ def load_model():
             "text-generation",
             model=model,
             tokenizer=tokenizer,
-            device=-1  
+            device=-1  # Use -1 for CPU, 0 for GPU
         )
         print("--- Model and tokenizer loaded successfully ---")
         return generator_pipeline, tokenizer
@@ -216,21 +216,15 @@ with col1:
             height=150
         )
         
-        # Generation parameters in a collapsible section
-        # Removed emoji from expander
         with st.expander("Advanced Settings"):
             temp = st.slider("Creativity (Temperature)", min_value=0.2, max_value=1.5, value=0.7, step=0.1)
             max_tokens = st.slider("Recipe Length (Max Tokens)", min_value=50, max_value=250, value=150, step=10)
 
-        # Submit button for the form
-        # Removed emoji from button label
         submit_button = st.form_submit_button(label="Generate Recipe!")
 
 with col2:
-    # Removed emoji from header
     st.header("Your AI-Generated Recipe")
-    
-    # This is where the output will be placed
+
     output_container = st.container()
 
 # --- 7. Generation Logic ---
@@ -239,11 +233,9 @@ if submit_button and generator:
         st.error("Please provide both a title and ingredients.")
     else:
         with st.spinner("Brewing up your recipe... 🧑‍🍳"):
-            # Clean and format the user's input
             title_clean = title.strip().lower()
             ingredients_clean = ", ".join([ing.strip().lower() for ing in ingredients_raw.split(',')])
 
-            # This prompt format MUST match the one used during training
             prompt = (
                 f"TITLE: {title_clean}\n"
                 f"INGREDIENTS: {ingredients_clean}\n"
@@ -262,21 +254,15 @@ if submit_button and generator:
                     pad_token_id=tokenizer.eos_token_id
                 )
 
-                # --- 8. Process and Display Output ---
                 full_text = generated_output[0]['generated_text']
                 recipe_part = full_text[len(prompt):].strip()
 
-                # Clean the output (remove extra EOS tokens)
                 if tokenizer.eos_token in recipe_part:
                     recipe_part = recipe_part.split(tokenizer.eos_token)[0]
 
-                # --- Improve readability by adding HTML newlines ---
-                # We use regex to add <br> tags for proper HTML rendering
                 formatted_recipe_html = re.sub(r' (\d+\.)', r'<br><br>\1', recipe_part).strip()
-                # Wrap in <p> tag for styling
                 formatted_recipe_html = f"<p>{formatted_recipe_html}</p>"
 
-                # Display the result in the right-hand column
                 with output_container:
                     st.markdown(f"""
                     <div class="recipe-box">
