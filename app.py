@@ -6,6 +6,7 @@ import os
 import subprocess
 import json
 
+# --- 1. Page Configuration ---
 st.set_page_config(
     page_title="Recipe Generator",
     page_icon="R",
@@ -13,56 +14,42 @@ st.set_page_config(
     initial_sidebar_state="auto"
 )
 
+# --- 2. Custom CSS for a New UI ---
 st.markdown("""
 <style>
-    /* Main app background */
-    [data-testid="stAppViewContainer"] {
-        background-color: #f0f4f7; /* A light, clean blue-gray */
-        background-image: none;
-    }
-
     /* Remove Streamlit Header/Footer */
     header {visibility: hidden;}
     footer {visibility: hidden;}
 
-    /* Custom Title */
+    /* Simple Title */
     .title-container {
         text-align: center;
-        padding: 25px 0;
-        margin-bottom: 30px;
+        padding: 20px 0;
+        margin-bottom: 20px;
     }
     .title-container h1 {
         font-size: 3em;
         font-weight: 700;
-        color: #1a2c4e; /* Dark navy text */
+        color: #111; /* Dark text */
     }
     .title-container p {
         font-size: 1.15em;
-        color: #5a6a8a; /* Muted subtext */
+        color: #333; /* Darker subtext */
     }
 
-    /* Main content columns as cards */
-    [data-testid="stHorizontalBlock"] > [data-testid="stVerticalBlock"] {
-        background-color: #ffffff;
-        border-radius: 12px;
-        box-shadow: 0 8px 32px rgba(0,0,0,0.05);
-        padding: 30px;
-        border-top: 5px solid #007bff; /* Accent color */
-    }
-    
-    /* Card Headers */
+    /* Card Headers (now simple headers) */
     [data-testid="stHorizontalBlock"] h2 {
-        color: #1a2c4e;
+        color: #111;
         font-weight: 600;
         font-size: 1.75em;
-        border-bottom: 2px solid #f0f4f7;
+        border-bottom: 2px solid #eee;
         padding-bottom: 12px;
         margin-bottom: 20px;
     }
 
-    /* Custom Form Submit Button */
+    /* Custom Form Submit Button (Simple Blue) */
     [data-testid="stFormSubmitButton"] button {
-        background-image: linear-gradient(45deg, #007bff, #0056b3);
+        background-color: #007bff;
         color: white;
         border: none;
         padding: 12px 24px;
@@ -71,24 +58,21 @@ st.markdown("""
         font-weight: bold;
         transition: all 0.3s ease;
         width: 100%;
-        box-shadow: 0 4px 15px rgba(0,123,255,0.2);
     }
     [data-testid="stFormSubmitButton"] button:hover {
-        background-image: linear-gradient(45deg, #0056b3, #007bff);
-        box-shadow: 0 6px 20px rgba(0,123,255,0.3);
-        transform: translateY(-2px);
+        background-color: #0056b3;
     }
 
     /* Style for the generated recipe output */
     .recipe-box {
-        background-color: #f8f9fa; /* Slight off-white for contrast */
-        border: 1px solid #e0e0e0;
+        background-color: #f8f8f8; /* Light gray box for output */
+        border: 1px solid #ddd;
         border-radius: 10px;
         padding: 25px;
         min-height: 400px;
     }
     .recipe-box h3 {
-        color: #1a2c4e;
+        color: #111;
         border-bottom: 2px solid #007bff;
         padding-bottom: 10px;
         margin-top: 0;
@@ -96,24 +80,14 @@ st.markdown("""
     .recipe-box p {
         font-size: 1.05em;
         line-height: 1.7;
-        color: #333;
+        color: #333; /* Dark text */
     }
     
-    /* Style for the text inputs */
-    [data-testid="stTextInput"] input, [data-testid="stTextArea"] textarea {
-        background-color: #f8f9fa;
-        border-radius: 8px;
-        border: 1px solid #d1d9e0;
-    }
-    [data-testid="stTextInput"] input:focus, [data-testid="stTextArea"] textarea:focus {
-        border-color: #007bff;
-        box-shadow: 0 0 0 2px rgba(0,123,255,0.25);
-    }
-
 </style>
 """, unsafe_allow_html=True)
 
 
+# --- 3. Model Download Logic ---
 MODEL_PATH = "final_model"
 
 @st.cache_resource
@@ -165,6 +139,7 @@ def setup_and_download_model():
         print("Model folder already exists.")
         return True
 
+# --- 4. Model Loading ---
 
 model_ready = setup_and_download_model()
 
@@ -200,6 +175,7 @@ if model_ready:
     with st.spinner("Warming up the AI chef... This may take a moment."):
         generator, tokenizer = load_model()
 
+# --- 5. App Interface ---
 st.markdown("""
 <div class="title-container">
     <h1>AI Recipe Generator</h1>
@@ -211,7 +187,8 @@ col1, col2 = st.columns([1, 1], gap="large")
 
 with col1:
     st.markdown("<h2>What's in your kitchen?</h2>", unsafe_allow_html=True)
-
+    
+    # --- 6. User Input Form ---
     with st.form(key="recipe_form"):
         title = st.text_input(
             "What do you want to make?",
@@ -237,6 +214,7 @@ with col2:
     
     output_container = st.container()
 
+# --- 7. Generation Logic ---
 if submit_button and generator:
     if not title or not ingredients_raw:
         st.error("Please provide both a title and ingredients.")
@@ -262,6 +240,7 @@ if submit_button and generator:
                     pad_token_id=tokenizer.eos_token_id
                 )
 
+                # --- 8. Process and Display Output ---
                 full_text = generated_output[0]['generated_text']
                 recipe_part = full_text[len(prompt):].strip()
 
