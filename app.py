@@ -6,7 +6,6 @@ import os
 import subprocess
 import json
 
-# --- 1. Page Configuration ---
 st.set_page_config(
     page_title="Recipe Generator",
     page_icon="R",
@@ -14,80 +13,6 @@ st.set_page_config(
     initial_sidebar_state="auto"
 )
 
-# --- 2. Custom CSS for a New UI ---
-st.markdown("""
-<style>
-    /* Remove Streamlit Header/Footer */
-    header {visibility: hidden;}
-    footer {visibility: hidden;}
-
-    /* Simple Title */
-    .title-container {
-        text-align: center;
-        padding: 20px 0;
-        margin-bottom: 20px;
-    }
-    .title-container h1 {
-        font-size: 3em;
-        font-weight: 700;
-        color: #111; /* Dark text */
-    }
-    .title-container p {
-        font-size: 1.15em;
-        color: #333; /* Darker subtext */
-    }
-
-    /* Card Headers (now simple headers) */
-    [data-testid="stHorizontalBlock"] h2 {
-        color: #111;
-        font-weight: 600;
-        font-size: 1.75em;
-        border-bottom: 2px solid #eee;
-        padding-bottom: 12px;
-        margin-bottom: 20px;
-    }
-
-    /* Custom Form Submit Button (Simple Blue) */
-    [data-testid="stFormSubmitButton"] button {
-        background-color: #007bff;
-        color: white;
-        border: none;
-        padding: 12px 24px;
-        border-radius: 8px;
-        font-size: 1.1em;
-        font-weight: bold;
-        transition: all 0.3s ease;
-        width: 100%;
-    }
-    [data-testid="stFormSubmitButton"] button:hover {
-        background-color: #0056b3;
-    }
-
-    /* Style for the generated recipe output */
-    .recipe-box {
-        background-color: #f8f8f8; /* Light gray box for output */
-        border: 1px solid #ddd;
-        border-radius: 10px;
-        padding: 25px;
-        min-height: 400px;
-    }
-    .recipe-box h3 {
-        color: #111;
-        border-bottom: 2px solid #007bff;
-        padding-bottom: 10px;
-        margin-top: 0;
-    }
-    .recipe-box p {
-        font-size: 1.05em;
-        line-height: 1.7;
-        color: #333; /* Dark text */
-    }
-    
-</style>
-""", unsafe_allow_html=True)
-
-
-# --- 3. Model Download Logic ---
 MODEL_PATH = "final_model"
 
 @st.cache_resource
@@ -139,8 +64,6 @@ def setup_and_download_model():
         print("Model folder already exists.")
         return True
 
-# --- 4. Model Loading ---
-
 model_ready = setup_and_download_model()
 
 @st.cache_resource
@@ -175,20 +98,16 @@ if model_ready:
     with st.spinner("Warming up the AI chef... This may take a moment."):
         generator, tokenizer = load_model()
 
-# --- 5. App Interface ---
-st.markdown("""
-<div class="title-container">
-    <h1>AI Recipe Generator</h1>
-    <p>Turn your ingredients into a delicious dish with the help of GPT-2.</p>
-</div>
-""", unsafe_allow_html=True)
+st.title("AI Recipe Generator")
+st.caption("Turn your ingredients into a delicious dish with the help of GPT-2.")
+
+st.divider()
 
 col1, col2 = st.columns([1, 1], gap="large")
 
 with col1:
-    st.markdown("<h2>What's in your kitchen?</h2>", unsafe_allow_html=True)
+    st.header("What's in your kitchen?")
     
-    # --- 6. User Input Form ---
     with st.form(key="recipe_form"):
         title = st.text_input(
             "What do you want to make?",
@@ -210,11 +129,10 @@ with col1:
         submit_button = st.form_submit_button(label="Generate Recipe")
 
 with col2:
-    st.markdown("<h2>Your AI-Generated Recipe</h2>", unsafe_allow_html=True)
+    st.header("Your AI-Generated Recipe")
     
-    output_container = st.container()
+    output_container = st.container(border=True, height=450)
 
-# --- 7. Generation Logic ---
 if submit_button and generator:
     if not title or not ingredients_raw:
         st.error("Please provide both a title and ingredients.")
@@ -240,23 +158,17 @@ if submit_button and generator:
                     pad_token_id=tokenizer.eos_token_id
                 )
 
-                # --- 8. Process and Display Output ---
                 full_text = generated_output[0]['generated_text']
                 recipe_part = full_text[len(prompt):].strip()
 
                 if tokenizer.eos_token in recipe_part:
                     recipe_part = recipe_part.split(tokenizer.eos_token)[0]
 
-                formatted_recipe_html = re.sub(r' (\d+\.)', r'<br><br>\1', recipe_part).strip()
-                formatted_recipe_html = f"<p>{formatted_recipe_html}</p>"
+                formatted_recipe = re.sub(r' (\d+\.)', r'\n\n\1', recipe_part).strip()
 
                 with output_container:
-                    st.markdown(f"""
-                    <div class="recipe-box">
-                        <h3>{title.title()}</h3>
-                        {formatted_recipe_html}
-                    </div>
-                    """, unsafe_allow_html=True)
+                    st.subheader(title.title())
+                    st.markdown(formatted_recipe)
 
             except Exception as e:
                 st.error(f"An error occurred during generation: {e}")
